@@ -3,6 +3,7 @@ import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
+import numpy
 
 #
 # mareenaModule
@@ -254,10 +255,41 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
 
   def test_mareenaModule1(self):
 
+    Sigma = 5.0
     
     transformNode = slicer.vtkMRMLLinearTransformNode()
     transformNode.SetName('transformNode')
     slicer.mrmlScene.AddNode(transformNode)
+    
+    
+    
+    #Creating two fiducial lists
+    alphaFids = slicer.vtkMRMLMarkupsFiducialNode()
+    alphaFids.SetName('RasPoints')
+    slicer.mrmlScene.AddNode(alphaFids)
+    
+    betaFids = slicer.vtkMRMLMarkupsFiducialNode()
+    betaFids.SetName('ReferencePoints')
+    slicer.mrmlScene.AddNode(betaFids)
+    
+    betaFids.GetDisplayNode().SetSelectedColor(1,1,0)
+    
+    N=10
+    Scale = 100
+    
+    fromNormCoorinates = numpy.random.rand(N,3)
+    noise = numpy.random.normal(0.0,Sigma, N*3)
+    
+    for i in range(N):
+        x = (fromNormCoorinates[i,0] - 0.5) * Scale
+        y = (fromNormCoorinates[i,1] - 0.5) * Scale
+        z = (fromNormCoorinates[i,2] - 0.5) * Scale
+    
+        alphaFids.AddFiducial(x,y,z)
+        xx = x + noise[i * 3]
+        yy = y + noise[i * 3 + 1]
+        zz = z + noise[i * 3 + 2]
+        betaFids.AddFiducial(xx, yy, zz)
 
 
     print "Mareena"
