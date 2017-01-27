@@ -255,13 +255,26 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
 
   def test_mareenaModule1(self):
 
+
+    #
+    # January 20th Homework
+    #
+    
+    print "Mareena"
+    
+    
+    #
+    # January 24th Homework
+    # This homework is posted in a separate file called transformNode.py
+
+
+
+    #
+    # January 26th Homework
+    #
+
+
     Sigma = 5.0
-    
-    transformNode = slicer.vtkMRMLLinearTransformNode()
-    transformNode.SetName('transformNode')
-    slicer.mrmlScene.AddNode(transformNode)
-    
-    
     
     #Creating two fiducial lists
     alphaFids = slicer.vtkMRMLMarkupsFiducialNode()
@@ -292,6 +305,19 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
         betaFids.AddFiducial(xx, yy, zz)
 
 
-    print "Mareena"
-    
+    #
+    # January 27th Homework
+    #
 
+ 	# Create coordinate models using the CreateModels module
+
+	createModelsLogic = slicer.modules.createmodels.logic()
+	RasCoordinateModel = createModelsLogic.CreateCoordinate(5,5)
+	RasCoordinateModel.SetName('RasCoordinateModel')
+	ReferenceCoordinateModel = createModelsLogic.CreateCoordinate(30,5)
+	ReferenceCoordinateModel.SetName('ReferenceCoordinateModel')
+    
+	# Change the color of models
+
+	RasCoordinateModel.GetDisplayNode().SetColor(1,0,0)
+	ReferenceCoordinateModel.GetDisplayNode().SetColor(0,0,1)
