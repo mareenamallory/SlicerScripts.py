@@ -4,6 +4,7 @@ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
 import numpy
+import math
 
 
 #
@@ -284,59 +285,51 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
         Sigma = 5.0
 
         # Creating two fiducial lists
-        refFids = slicer.vtkMRMLMarkupsFiducialNode()
-        refFids.SetName('ReferencePoints')
-        slicer.mrmlScene.AddNode(refFids)
+        randCoordinates = numpy.random.rand(10, 3)  # An array of random numbers
+        noise = numpy.random.normal(0.0, 2, 10 * 3)
 
-        rasFids = slicer.vtkMRMLMarkupsFiducialNode()
-        rasFids.SetName('RasPoints')
-        slicer.mrmlScene.AddNode(rasFids)
+        RasPoints = slicer.vtkMRMLMarkupsFiducialNode()
+        RasPoints.SetName('Ras Points')
+        slicer.mrmlScene.AddNode(RasPoints)
 
-        rasFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
+        ReferencePoints = slicer.vtkMRMLMarkupsFiducialNode()
+        ReferencePoints.SetName('Reference Points')
+        slicer.mrmlScene.AddNode(ReferencePoints)
+        ReferencePoints.GetDisplayNode().SetSelectedColor(1, 1, 0)
 
-        N = 10
-        Scale = 100
+        alphaPoints = vtk.vtkPoints()
+        betaPoints = vtk.vtkPoints()
 
-        fromNormCoorinates = numpy.random.rand(N, 3)
-        noise = numpy.random.normal(0.0, Sigma, N * 3)
-
-        refPoints = vtk.vtkPoints()
-        rasPoints = vtk.vtkPoints()
-
-        for i in range(N):
-            x = (fromNormCoorinates[i, 0] - 0.5) * Scale
-            y = (fromNormCoorinates[i, 1] - 0.5) * Scale
-            z = (fromNormCoorinates[i, 2] - 0.5) * Scale
-
-            numFids = refFids.AddFiducial(x, y, z)
-            numPoints = refPoints.InsertNextPoint(x, y, z)
+        for i in range(0, 10):
+            x = (randCoordinates[i, 0] - 0.5) * 100
+            y = (randCoordinates[i, 1] - 0.5) * 100
+            z = (randCoordinates[i, 2] - 0.5) * 100
+            RasPoints.AddFiducial(x, y, z)
+            alphaPoints.InsertNextPoint(x, y, z)
 
             xx = x + noise[i * 3]
             yy = y + noise[i * 3 + 1]
             zz = z + noise[i * 3 + 2]
-            rasFids.AddFiducial(xx, yy, zz)
-
-            numFids = rasFids.AddFiducial(xx, yy, zz)
-            numPoints = rasPoints.InsertNextPoint(xx, yy, zz)
+            ReferencePoints.AddFiducial(xx, yy, zz)
+            betaPoints.InsertNextPoint(xx, yy, zz)
 
         #
         # January 27th Homework
         #
 
-
-
         # Create coordinate models using the CreateModels module
 
         createModelsLogic = slicer.modules.createmodels.logic()
+
         RasCoordinateModel = createModelsLogic.CreateCoordinate(5, 5)
         RasCoordinateModel.SetName('RasCoordinateModel')
-        ReferenceCoordinateModel = createModelsLogic.CreateCoordinate(20, 20)
-        ReferenceCoordinateModel.SetName('ReferenceCoordinateModel')
+        RefCoordinateModel = createModelsLogic.CreateCoordinate(20, 20)
+        RefCoordinateModel.SetName('ReferenceCoordinateModel')
 
         # Change the color of models
 
         RasCoordinateModel.GetDisplayNode().SetColor(1, 0, 0)
-        ReferenceCoordinateModel.GetDisplayNode().SetColor(0, 0, 1)
+        RefCoordinateModel.GetDisplayNode().SetColor(0, 0, 1)
 
         #
         # January 31st Homework
@@ -344,42 +337,53 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
 
         # Create transform node for registration
 
-        refToRas = slicer.vtkMRMLLinearTransformNode()
-        refToRas.SetName('refToRas')
-        slicer.mrmlScene.AddNode(refToRas)
-
-        # Create landmark transform object that computes registration
+        RasToReference = slicer.vtkMRMLLinearTransformNode()
+        RasToReference.SetName('RasToReference')
+        slicer.mrmlScene.AddNode(RasToReference)
 
         landmarkTransform = vtk.vtkLandmarkTransform()
-        landmarkTransform.SetSourceLandmarks(refPoints)
-        landmarkTransform.SetTargetLandmarks(rasPoints)
+        landmarkTransform.SetSourceLandmarks(alphaPoints)
+        landmarkTransform.SetTargetLandmarks(betaPoints)
         landmarkTransform.SetModeToRigidBody()
         landmarkTransform.Update()
 
-        refToRasMatrix = vtk.vtkMatrix4x4()
-        landmarkTransform.GetMatrix(refToRasMatrix)
+        RasToReferenceMatrix = vtk.vtkMatrix4x4()
+        landmarkTransform.GetMatrix(RasToReferenceMatrix)
 
-        det = refToRasMatrix.Determinant()
+        det = RasToReferenceMatrix.Determinant()
         if det < 1e-8:
-            'Unstable registration.'
+            print 'Unstable registration '
 
-        refToRas.SetMatrixTransformToParent(refToRasMatrix)
+        RasToReference.SetMatrixTransformToParent(RasToReferenceMatrix)
+        RefCoordinateModel.SetAndObserveTransformNodeID(RasToReference.GetID())
 
-        # Compute average point distance after registration
+        average = 0.0
+        numbersSoFar = 0
 
-        avg = 0.0
-        numSoFar = 0
+        for i in range(10):
+            numbersSoFar = numbersSoFar + 1
+            a = alphaPoints.GetPoint(i)
+            pointA_Alpha = numpy.array(a)
+            pointA_Alpha = numpy.append(pointA_Alpha, 1)
+            pointA_Beta = RasToReferenceMatrix.MultiplyFloatPoint(pointA_Alpha)
+            b = betaPoints.GetPoint(i)
+            pointB_Beta = numpy.array(b)
+            pointB_Beta = numpy.append(pointB_Beta, 1)
+            distance = numpy.linalg.norm(pointA_Beta - pointB_Beta)
+            average = average + (distance - average) / numbersSoFar
 
-        for i in range(N):
-            numSoFar = numSoFar + 1
-            a = refPoints.GetPoint(i)
-            pointA_Ref = numpy.array(a)
-            pointA_Ref = numpy.append(pointA_Ref, 1)
-            pointA_Ras = refToRasMatrix.MultiplyFloatPoint(pointA_Ref)  # may have confused ras with ref
-            b = rasPoints.GetPoint(i)
-            pointB_Ras = numpy.array(b)
-            pointB_Ras = numpy.append(pointB_Ras, 1)
-            distance = numpy.linalg.norm(pointA_Ras - pointB_Ras)
-            avg = avg + (distance - avg) / numSoFar
+        print "Average distance after registration: " + str(average)
 
-        print "Average distance after registration: " + str(avg)
+
+        #
+        # February 2nd Homework
+        #
+        
+        # Calculate TRE with origin as target
+        RasOrigin = numpy.array([0, 0, 0, 1])
+        RefOrigin = RasToReferenceMatrix.MultiplyFloatPoint(RasOrigin)
+
+        TRE = math.sqrt(pow((RasOrigin[0] - RefOrigin[0]), 2) + pow((RasOrigin[1] - RefOrigin[1]), 2) + pow(
+            (RasOrigin[2] - RefOrigin[2]), 2))
+
+        print "TRE between RAS and Reference: " + str(TRE)
