@@ -275,14 +275,12 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
         # January 24th Homework
         # This homework is posted in a separate file called transformNode.py
 
-
-
         #
         # January 26th Homework
         #
 
         N = 10
-        Sigma = 5.0
+        Sigma = 2.0
         Scale = 100
 
         # Creating two fiducial lists
@@ -323,15 +321,16 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
 
         createModelsLogic = slicer.modules.createmodels.logic()
 
-        RefCoordinateModel = createModelsLogic.CreateCoordinate(20, 3)
-        RefCoordinateModel.SetName('RasCoordinateModel')
-        RasCoordinateModel = createModelsLogic.CreateCoordinate(10, 3)
-        RasCoordinateModel.SetName('ReferenceCoordinateModel')
+        RefModelNode = createModelsLogic.CreateCoordinate(20, 2)
+        RefModelNode.SetName('RefModelNode')
+
+        RasModelNode = createModelsLogic.CreateCoordinate(20, 2)
+        RasModelNode.SetName('RasModelNode')
 
         # Change the color of models
 
-        RefCoordinateModel.GetDisplayNode().SetColor(0, 0, 1)
-        RasCoordinateModel.GetDisplayNode().SetColor(1, 0, 0)
+        RefModelNode.GetDisplayNode().SetColor(0, 0, 1)
+        RasModelNode.GetDisplayNode().SetColor(1, 0, 0)
 
         #
         # January 31st Homework
@@ -357,7 +356,7 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
             print 'Unstable registration '
 
         RefToRas.SetMatrixTransformToParent(RefToRasMatrix)
-        RefCoordinateModel.SetAndObserveTransformNodeID(RefToRas.GetID())
+        RefModelNode.SetAndObserveTransformNodeID(RefToRas.GetID())
 
         average = 0.0
         numSoFar = 0
