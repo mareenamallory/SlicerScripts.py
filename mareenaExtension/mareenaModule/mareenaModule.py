@@ -154,6 +154,39 @@ class mareenaModuleLogic(ScriptedLoadableModuleLogic):
     https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
+    def averageTransformedDistance(self, pointsA, pointsB, aToBMatrix):
+        average = 0.0
+        numSoFar = 0
+        numPts = pointsA.GetNumberOfPoints()
+
+        for i in range(numPts):
+            numSoFar = numSoFar + 1
+
+            a = pointsA.GetPoint(i)
+            pointA_Ref = numpy.array(a)
+            pointA_Ref = numpy.append(pointA_Ref, 1)
+            pointA_Ras = aToBMatrix.MultiplyFloatPoint(pointA_Ref)
+
+            b = pointsB.GetPoint(i)
+            pointB_Ras = numpy.array(b)
+            pointB_Ras = numpy.append(pointB_Ras, 1)
+
+            distance = numpy.linalg.norm(pointA_Ras - pointB_Ras)
+            average = average + (distance - average) / numSoFar
+
+        return average
+
+    def rigidRegistration(self, alphaPoints, betaPoints, alphatToBetaMatrix):
+
+        # Create transform node for registration
+        landmarkTransform = vtk.vtkLandmarkTransform()
+        landmarkTransform.SetSourceLandmarks(alphaPoints)
+        landmarkTransform.SetTargetLandmarks(betaPoints)
+        landmarkTransform.SetModeToRigidBody()
+        landmarkTransform.Update()
+
+        landmarkTransform.GetMatrix(alphatToBetaMatrix)
+
     def hasImageData(self, volumeNode):
         """This is an example logic method that
         returns true if the passed in volume
@@ -244,6 +277,48 @@ class mareenaModuleLogic(ScriptedLoadableModuleLogic):
 
         return True
 
+    def generatePoints(self, numPoints, Scale, Sigma):
+
+        rasFids = slicer.util.getNode('RasPoints')
+
+        if rasFids == None:
+            rasFids = slicer.vtkMRMLMarkupsFiducialNode()
+            rasFids.SetName('RasPoints')
+            slicer.mrmlScene.AddNode(rasFids)
+
+        rasFids.RemoveAllMarkups()
+        refFids = slicer.util.getNode('ReferencePoints')
+
+        if refFids == None:
+            refFids = slicer.vtkMRMLMarkupsFiducialNode()
+            refFids.SetName('ReferencePoints')
+            slicer.mrmlScene.AddNode(refFids)
+
+        refFids.RemoveAllMarkups()
+        refFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
+
+        # Creating two fiducial lists
+        fromNormCoord = numpy.random.rand(numPoints, 3)
+        noise = numpy.random.normal(0.0, Sigma, numPoints * 3)
+
+        for i in range(numPoints):
+            x = (fromNormCoord[i, 0] - 0.5) * Scale
+            y = (fromNormCoord[i, 1] - 0.5) * Scale
+            z = (fromNormCoord[i, 2] - 0.5) * Scale
+
+            rasFids.AddFiducial(x, y, z)
+            xx = x + noise[i * 3]
+            yy = y + noise[i * 3 + 1]
+            zz = z + noise[i * 3 + 2]
+            refFids.AddFiducial(xx, yy, zz)
+
+    def fiducialsToPoints(self, fiducials, points):
+        n = fiducials.GetNumberOfFiducials()
+
+        for i in range(n):
+            p = [0, 0, 0]
+            fiducials.GetNthFiducialPosition(i, p)
+            points.InsertNextPoint(p[0], p[1], p[2])
 
 class mareenaModuleTest(ScriptedLoadableModuleTest):
     """
@@ -263,133 +338,154 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
         self.setUp()
         self.test_mareenaModule1()
 
-    def test_mareenaModule1(self):
+    def generatePoints(self, numPoints, Scale, Sigma):
 
-        #
-        # January 20th Homework
-        #
+        rasFids = slicer.util.getNode('RasPoints')
 
-        print "Mareena"
+        if rasFids == None:
+            rasFids = slicer.vtkMRMLMarkupsFiducialNode()
+            rasFids.SetName('RasPoints')
+            slicer.mrmlScene.AddNode(rasFids)
 
-        #
-        # January 24th Homework
-        # This homework is posted in a separate file called transformNode.py
+        rasFids.RemoveAllMarkups()
+        refFids = slicer.util.getNode('RefPoints')
 
-        #
-        # January 26th Homework
-        #
-
-        k = 10
-        Sigma = 2.0
-        Scale = 100
-
-        for N in range(k):
-
-            # Creating two fiducial lists
-            randCoordinates = numpy.random.rand(N, 3)  # An array of random numbers
-            noise = numpy.random.normal(0.0, Sigma, 10 * 3)
-
+        if refFids == None:
             refFids = slicer.vtkMRMLMarkupsFiducialNode()
-            refFids.SetName('Ref Points')
+            refFids.SetName('RefPoints')
             slicer.mrmlScene.AddNode(refFids)
 
-            rasFids = slicer.vtkMRMLMarkupsFiducialNode()
-            rasFids.SetName('Ras Points')
-            slicer.mrmlScene.AddNode(rasFids)
-            rasFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
+        refFids.RemoveAllMarkups()
+        refFids.GetDisplayNode().SetSelectedColor(1, 1, 0)
 
-            refPoints = vtk.vtkPoints()
-            rasPoints = vtk.vtkPoints()
+        fromNormCoord = numpy.random.rand(numPoints, 3)
+        noise = numpy.random.normal(0.0, Sigma, numPoints * 3)
 
-            for i in range(N):
+        for i in range(numPoints):
+            x = (fromNormCoord[i, 0] - 0.5) * Scale
+            y = (fromNormCoord[i, 1] - 0.5) * Scale
+            z = (fromNormCoord[i, 2] - 0.5) * Scale
 
-                x = (randCoordinates[i, 0] - 0.5) * Scale
-                y = (randCoordinates[i, 1] - 0.5) * Scale
-                z = (randCoordinates[i, 2] - 0.5) * Scale
-                refFids.AddFiducial(x, y, z)
-                refPoints.InsertNextPoint(x, y, z)
+            rasFids.AddFiducial(x, y, z)
+            xx = x + noise[i * 3]
+            yy = y + noise[i * 3 + 1]
+            zz = z + noise[i * 3 + 2]
+            refFids.AddFiducial(xx, yy, zz)
 
-                xx = x + noise[i * 3]
-                yy = y + noise[i * 3 + 1]
-                zz = z + noise[i * 3 + 2]
-                rasFids.AddFiducial(xx, yy, zz)
-                rasPoints.InsertNextPoint(xx, yy, zz)
+    def fiducialsToPoints(self, fiducials, points):
+        n = fiducials.GetNumberOfFiducials()
 
-            #
-            # January 27th Homework
-            #
+        for i in range(n):
+            p = [0, 0, 0]
+            fiducials.GetNthFiducialPosition(i, p)
+            points.InsertNextPoint(p[0], p[1], p[2])
 
-            # Create coordinate models using the CreateModels module
 
-            createModelsLogic = slicer.modules.createmodels.logic()
+    def createChart(self, nVals, TREVals):
 
-            RefModelNode = createModelsLogic.CreateCoordinate(20, 2)
-            RefModelNode.SetName('RefModelNode')
+        # Switch to layout 24 that contains a chart view to initiate
+        # construction of the widget and chart view node
+        lns = slicer.mrmlScene.GetNodesByClass('vtkMRMLLayoutNode')
+        lns.InitTraversal()
+        ln = lns.GetNextItemAsObject()
+        ln.SetViewArrangement(24)
 
-            RasModelNode = createModelsLogic.CreateCoordinate(20, 2)
-            RasModelNode.SetName('RasModelNode')
+        # Get the Chart View Node
+        cvns = slicer.mrmlScene.GetNodesByClass('vtkMRMLChartViewNode')
+        cvns.InitTraversal()
+        cvn = cvns.GetNextItemAsObject()
 
-            # Change the color of models
+        # Create an Array Node and add some data
+        dn = slicer.mrmlScene.AddNode(slicer.vtkMRMLDoubleArrayNode())
+        a = dn.GetArray()
+        a.SetNumberOfTuples(4)
+        for i in range(4):
+            dn.SetXYValue(i,nVals[i],TREVals[i],0)
 
-            RefModelNode.GetDisplayNode().SetColor(0, 0, 1)
-            RasModelNode.GetDisplayNode().SetColor(1, 0, 0)
+        # Create a Chart Node.
+        cn = slicer.mrmlScene.AddNode(slicer.vtkMRMLChartNode())
 
-            #
-            # January 31st Homework
-            #
+        # Add the Array Nodes to the Chart. The first argument is a string used for the legend and to refer to the Array when setting properties.
+        cn.AddArray('TRE to Number of Points', dn.GetID())
 
-            # Create transform node for registration
+        # Set a few properties on the Chart. The first argument is a string identifying which Array to assign the property.
+        # 'default' is used to assign a property to the Chart itself (as opposed to an Array Node).
+        cn.SetProperty('default', 'title', 'TRE as a Function of Number of Points')
+        cn.SetProperty('default', 'xAxisLabel', 'Points')
+        cn.SetProperty('default', 'yAxisLabel', 'TRE')
 
-            RefToRas = slicer.vtkMRMLLinearTransformNode()
-            RefToRas.SetName('RefToRas')
-            slicer.mrmlScene.AddNode(RefToRas)
+        # Tell the Chart View which Chart to display
+        cvn.SetChartNodeID(cn.GetID())
 
-            landmarkTransform = vtk.vtkLandmarkTransform()
-            landmarkTransform.SetSourceLandmarks(refPoints)
-            landmarkTransform.SetTargetLandmarks(rasPoints)
-            landmarkTransform.SetModeToRigidBody()
-            landmarkTransform.Update()
 
-            RefToRasMatrix = vtk.vtkMatrix4x4()
-            landmarkTransform.GetMatrix(RefToRasMatrix)
+    def test_mareenaModule1(self):
 
-            det = RefToRasMatrix.Determinant()
+        # Create coordinate models using CreateModels module
+        createModelsLogic = slicer.modules.createmodels.logic()
+
+        rasModelNode = createModelsLogic.CreateCoordinate(20, 2)
+        rasModelNode.SetName('RasModel')
+
+        refModelNode = createModelsLogic.CreateCoordinate(20, 2)
+        refModelNode.SetName('RefModel')
+
+        # Change the color of models
+        rasModelNode.GetDisplayNode().SetColor(1, 0, 0)
+        refModelNode.GetDisplayNode().SetColor(0, 1, 0)
+
+        # Create transform node for registration
+        refToRas = slicer.vtkMRMLLinearTransformNode()
+        refToRas.SetName('RefToRas')
+        slicer.mrmlScene.AddNode(refToRas)
+
+        refModelNode.SetAndObserveTransformNodeID(refToRas.GetID())
+
+        rasPoints = vtk.vtkPoints()
+        refPoints = vtk.vtkPoints()
+
+        logic = mareenaModuleLogic()
+
+        TREVals = []
+        nVals = []
+
+        for i in range(10):
+
+            numPts = 10 + i * 5
+            sigma = 3.0
+            scale = 100.0
+
+            nVals.append(numPts)
+
+            self.generatePoints(numPts, scale, sigma)
+            rasFids = slicer.util.getNode('RasPoints')
+            refFids = slicer.util.getNode('RefPoints')
+
+            self.fiducialsToPoints(rasFids, rasPoints)
+            self.fiducialsToPoints(refFids, refPoints)
+
+            refToRasMatrix = vtk.vtkMatrix4x4()
+            logic.rigidRegistration(refPoints, rasPoints, refToRasMatrix)
+
+            det = refToRasMatrix.Determinant()
             if det < 1e-8:
-                print 'Unstable registration '
+                logging.error('All points in one line')
+                continue
 
-            RefToRas.SetMatrixTransformToParent(RefToRasMatrix)
-            RefModelNode.SetAndObserveTransformNodeID(RefToRas.GetID())
+            refToRas.SetMatrixTransformToParent(refToRasMatrix)
+            avgDistance = logic.averageTransformedDistance(refPoints, rasPoints, refToRasMatrix)
 
-            average = 0.0
-            numSoFar = 0
+            print "Average distance: " + str(avgDistance)
 
-            for i in range(N):
-                numSoFar = numSoFar + 1
+            targetPoint_Ras = numpy.array([0, 0, 0, 1])
+            targetPoint_Ref = refToRasMatrix.MultiplyFloatPoint(targetPoint_Ras)
+            targetPoint_Ref = numpy.array(targetPoint_Ref)
 
-                a = refPoints.GetPoint(i)
-                pointA_Ref = numpy.array(a)
-                pointA_Ref = numpy.append(pointA_Ref, 1)
-                pointA_Ras = RefToRasMatrix.MultiplyFloatPoint(pointA_Ref)
+            TRE = numpy.linalg.norm(targetPoint_Ras - targetPoint_Ref)
 
-                b = rasPoints.GetPoint(i)
-                pointB_Ref = numpy.array(b)
-                pointB_Ras = numpy.append(pointB_Ref, 1)
-
-                distance = numpy.linalg.norm(pointA_Ras - pointB_Ras)
-                average = average + (distance - average) / numSoFar
-
-            print "Average distance after registration: " + str(average)
-
-
-            #
-            # February 2nd Homework
-            #
-
-            # Calculate TRE with origin as target
-            RasOrigin = numpy.array([0, 0, 0, 1])
-            RefOrigin = RefToRasMatrix.MultiplyFloatPoint(RasOrigin)
-
-            TRE = math.sqrt(pow((RasOrigin[0] - RefOrigin[0]), 2) + pow((RasOrigin[1] - RefOrigin[1]), 2) + pow(
-                (RasOrigin[2] - RefOrigin[2]), 2))
+            TREVals.append(TRE)
 
             print "TRE: " + str(TRE)
+
+        # Creating a chart
+
+        self.createChart(nVals, TREVals)
