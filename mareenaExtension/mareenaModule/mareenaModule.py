@@ -398,9 +398,12 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
         # Create an Array Node and add some data
         dn = slicer.mrmlScene.AddNode(slicer.vtkMRMLDoubleArrayNode())
         a = dn.GetArray()
-        a.SetNumberOfTuples(4)
-        for i in range(4):
-            dn.SetXYValue(i,nVals[i],TREVals[i],0)
+        a.SetNumberOfTuples(10)
+
+        for i in range(10):
+            a.SetComponent(i, 0, nVals[i])
+            a.SetComponent(i, 1, TREVals[i])
+            a.SetComponent(i, 2, 0)
 
         # Create a Chart Node.
         cn = slicer.mrmlScene.AddNode(slicer.vtkMRMLChartNode())
@@ -446,7 +449,7 @@ class mareenaModuleTest(ScriptedLoadableModuleTest):
         logic = mareenaModuleLogic()
 
         TREVals = []
-        nVals = []
+        nVals = range(10,70,5)
 
         for i in range(10):
 
